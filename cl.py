@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
 
 import argparse
+import os
 import plyvel
+import shutil
 import requests
 import urllib
 from bs4 import BeautifulSoup
-from pushover import send_message
+from pushover import push_notification
 
 def log(msg):
     print(msg)
 
 
-def do_search(location, searchterm, db, ignorefirst):
+def b(s):
+    # wtf python3 why do you make me do this
+    return bytes(s, 'utf-8')
+
+
+def do_search(location, searchterm, db):
     #URL = urllib.parse.urlencode('https://{}.craigslist.org/search/sss?query={}'.format(location, searchterm))
     URL = 'https://{}.craigslist.org/search/sss?query={}'.format(location, searchterm)
 
@@ -56,11 +63,11 @@ def do_search(location, searchterm, db, ignorefirst):
         result_link = result_link_tag['href']
 
         # custom func I use to notify my smartphone of a new listing
-        #send_message('New search result: ' + result_name + '\n' + result_link)
+        push_notification('New search result: ' + result_name + '\n' + result_link)
 
         # add this to the db if it doesn't exist
-        if db.get(bytes(result_id, 'utf-8')) is None:
-            db.put(bytes(result_id, 'utf-8'), bytes(result_name, 'utf-8'))
+        if db.get(b(result_id)) is None:
+            db.put(b(result_id), b(result_name))
             print('New item: {}'.format(result_name))
 
     log('[+] done')
@@ -68,17 +75,32 @@ def do_search(location, searchterm, db, ignorefirst):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--location', default='newyork', help='specify which craigslist to search')
-    parser.add_argument('--ignorefirst', default='False', help='do *not* send notifications for new listings during first search')
-    parser.add_argument('searchterms', help='a comma-separated list of search terms (e.g. "toilet paper,hand sanatizer,macbook pro"')
+    parser.add_argument('--location', default='newyork', help='specify which craigslist region to search')
+    parser.add_argument('--freshdb', default=False, action='store_true', help='clear out old db if one exists')
+    parser.add_argument('--dbloc', default='', help='directory to store the leveldb, defaults to name of region')
+    parser.add_argument('searchterms', help='a comma-separated list of search terms (e.g. "toilet paper,hand sanatizer,facemask"')
     args = parser.parse_args()
 
+    # use the location for a db name, or use the user-specified name?
+    if args.dbloc != '':
+        dbloc = args.dbloc
+    else:
+        dbloc = args.location
+
+    # do we need to start with a fresh database?
+    if args.freshdb:
+        log('[-] creating a fresh database at {}'.format(dbloc))
+        if os.path.exists(dbloc) and os.path.isdir(dbloc):
+            choice = input('[!] are you sure you want to remove directory {}? (y/n): '.format(dbloc))
+            if choice == 'y':
+                shutil.rmtree(dbloc)
+
     # connect to leveldb, or create the db if necessary
-    db = plyvel.DB('./db', create_if_missing=True)
+    db = plyvel.DB(dbloc, create_if_missing=True)
 
     searchterms = args.searchterms.split(',')
     for searchterm in searchterms:
-        do_search(args.location, searchterm, db, args.ignorefirst)
+        do_search(args.location, searchterm, db)
 
     db.close()
 
