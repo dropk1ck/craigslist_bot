@@ -5,9 +5,11 @@ import os
 import plyvel
 import shutil
 import requests
+import time
 import urllib
 from bs4 import BeautifulSoup
 from pushover import push_notification
+from signal import signal, SIGINT
 
 def log(msg):
     print(msg)
@@ -18,9 +20,10 @@ def b(s):
     return bytes(s, 'utf-8')
 
 
-def do_search(location, searchterm, db):
-    #URL = urllib.parse.urlencode('https://{}.craigslist.org/search/sss?query={}'.format(location, searchterm))
-    URL = 'https://{}.craigslist.org/search/sss?query={}'.format(location, searchterm)
+def do_search(location, searchterm, db, send_notification):
+    query = {'query': searchterm}
+    query_encoded = urllib.parse.urlencode(query)
+    URL = 'https://{}.craigslist.org/search/sss?{}'.format(location, query_encoded)
 
     doc = requests.get(URL)
     if doc.status_code != 200:
@@ -46,7 +49,9 @@ def do_search(location, searchterm, db):
         log('did not find range_to on page')
         return False
     
-    log('============ {} ============'.format(searchterm))
+    # for now just parse the first page of results, since the point of this thing
+    # is really just to get push notifications on new items
+    log('============ New results for: {} ============'.format(searchterm))
     range_to = int(range_to[0].contents[0])
     log('[+] results on this page: {}'.format(range_to))
 
@@ -62,15 +67,15 @@ def do_search(location, searchterm, db):
         result_name = result_link_tag.contents[0]
         result_link = result_link_tag['href']
 
-        # custom func I use to notify my smartphone of a new listing
-        push_notification('New search result: ' + result_name + '\n' + result_link)
-
         # add this to the db if it doesn't exist
         if db.get(b(result_id)) is None:
             db.put(b(result_id), b(result_name))
             print('New item: {}'.format(result_name))
+            if send_notification:
+                # custom func I use to notify my smartphone of a new listing
+                push_notification('New search result: ' + result_name + '\n' + result_link)
 
-    log('[+] done')
+    log('[+] done\n\n')
 
 
 if __name__ == '__main__':
@@ -78,6 +83,7 @@ if __name__ == '__main__':
     parser.add_argument('--location', default='newyork', help='specify which craigslist region to search')
     parser.add_argument('--freshdb', default=False, action='store_true', help='clear out old db if one exists')
     parser.add_argument('--dbloc', default='', help='directory to store the leveldb, defaults to name of region')
+    parser.add_argument('--interval', type=int, default=5, help='time between searches, in minutes')
     parser.add_argument('searchterms', help='a comma-separated list of search terms (e.g. "toilet paper,hand sanatizer,facemask"')
     args = parser.parse_args()
 
@@ -99,8 +105,18 @@ if __name__ == '__main__':
     db = plyvel.DB(dbloc, create_if_missing=True)
 
     searchterms = args.searchterms.split(',')
-    for searchterm in searchterms:
-        do_search(args.location, searchterm, db)
 
+    # first do a search on each term to populate the database. do not send notifications for the first search 
+    for searchterm in searchterms:
+        do_search(args.location, searchterm, db, False)
+
+    # enter our infinite loop
+    while True:
+        time.sleep(args.interval * 60)
+        for searchterm in searchterms:
+            do_search(args.location, searchterm, db, True)
+
+    # close down
     db.close()
+
 
