@@ -4,12 +4,14 @@ import argparse
 import os
 import plyvel
 import shutil
+import sys
 import requests
 import time
 import urllib
 from bs4 import BeautifulSoup
 from pushover import push_notification
-from signal import signal, SIGINT
+import signal
+
 
 def log(msg):
     print(msg)
@@ -72,13 +74,14 @@ def do_search(location, searchterm, db, send_notification):
             db.put(b(result_id), b(result_name))
             print('New item: {}'.format(result_name))
             if send_notification:
-                # custom func I use to notify my smartphone of a new listing
+                # my own function for sending push notifications to my mobile device, make your own
+                # I use pushover.net, there's lots of others
                 push_notification('New search result: ' + result_name + '\n' + result_link)
 
     log('[+] done\n\n')
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--location', default='newyork', help='specify which craigslist region to search')
     parser.add_argument('--freshdb', default=False, action='store_true', help='clear out old db if one exists')
@@ -104,6 +107,15 @@ if __name__ == '__main__':
     # connect to leveldb, or create the db if necessary
     db = plyvel.DB(dbloc, create_if_missing=True)
 
+    # setup a signal handler, and use a closure so we can close the db on SIGINT
+    def sigint_handler(*args):
+        log('[+] SIGINT caught')
+        log('[+] shutting down, closing db')
+        db.close()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, sigint_handler)
+
     searchterms = args.searchterms.split(',')
 
     # first do a search on each term to populate the database. do not send notifications for the first search 
@@ -116,7 +128,6 @@ if __name__ == '__main__':
         for searchterm in searchterms:
             do_search(args.location, searchterm, db, True)
 
-    # close down
-    db.close()
 
-
+if __name__ == '__main__':
+    main()
