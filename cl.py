@@ -9,12 +9,20 @@ import requests
 import time
 import urllib
 from bs4 import BeautifulSoup
-from pushover import push_notification
 import signal
 
 
 def log(msg):
     print(msg)
+
+
+try:
+    # my personal push_notification function
+    from pushover import push_notification
+except ModuleNotFoundError:
+    log('[!] Unable to send push notifications, maybe implement push_notification()')
+    def push_notification(msg):
+        return
 
 
 def b(s):
@@ -80,6 +88,7 @@ def do_search(location, searchterm, db, send_notification):
                 push_notification('New search result for "{}": {}\n{}'.format(searchterm, result_name, result_link))
 
     log('[+] done\n\n')
+    return True
 
 
 def main():
