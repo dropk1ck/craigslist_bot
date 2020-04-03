@@ -1,5 +1,7 @@
 # craigslist bot
 
+[![Build Status](https://travis-ci.org/dropk1ck/craigslist_bot.svg?branch=master)](https://travis-ci.org/dropk1ck/craigslist_bot)
+
 Is the native craigslist search alert slow and unreliable for you? Me too! Why? I don't know! Let's automate our own.
 
 currently:
