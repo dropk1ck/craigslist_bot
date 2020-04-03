@@ -76,7 +76,7 @@ def do_search(location, searchterm, db, send_notification):
             if send_notification:
                 # my own function for sending push notifications to my mobile device, make your own
                 # I use pushover.net, there's lots of others
-                push_notification('New search result: ' + result_name + '\n' + result_link)
+                push_notification('New search result for "{}": {}\n{}'.format(searchterm, result_name, result_link))
 
     log('[+] done\n\n')
 
