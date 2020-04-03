@@ -27,6 +27,7 @@ def do_search(location, searchterm, db, send_notification):
     query_encoded = urllib.parse.urlencode(query)
     URL = 'https://{}.craigslist.org/search/sss?{}'.format(location, query_encoded)
 
+    log('============ {} ============'.format(searchterm))
     doc = requests.get(URL)
     if doc.status_code != 200:
         log('bad HTTP return code for searchterm {}'.format(searchterm))
@@ -53,9 +54,9 @@ def do_search(location, searchterm, db, send_notification):
     
     # for now just parse the first page of results, since the point of this thing
     # is really just to get push notifications on new items
-    log('============ New results for: {} ============'.format(searchterm))
     range_to = int(range_to[0].contents[0])
     log('[+] results on this page: {}'.format(range_to))
+    log('[+] New results for: {}'.format(searchterm))
 
     # iterate the search results, bounding ourselves at the number of results in the current page
     for i, result in enumerate(soup.find_all(name='p', attrs={'class': 'result-info'})):
